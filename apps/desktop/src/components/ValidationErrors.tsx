@@ -1,4 +1,3 @@
-import React from 'react';
 import type { ValidationError } from '../lib/validator';
 
 interface ValidationErrorsProps {
@@ -9,6 +8,7 @@ const errorTypeIcons: Record<ValidationError['type'], string> = {
   import: '📦',
   element: '🏷️',
   prop: '⚙️',
+  value: '🎨',
   syntax: '❌',
 };
 
@@ -16,6 +16,7 @@ const errorTypeLabels: Record<ValidationError['type'], string> = {
   import: 'Import Violation',
   element: 'Element Violation',
   prop: 'Prop Violation',
+  value: 'Invalid Token Value',
   syntax: 'Syntax Error',
 };
 

@@ -1,7 +1,9 @@
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
 import type { ValidationError } from '../lib/validator';
 import type { Project } from '../lib/project';
+import type { ParsedComponent } from '../lib/component-parser';
+import type { Theme } from '../lib/theme';
+import { DEFAULT_THEME } from '../lib/theme';
 import { usePermissionStore } from './permission-store';
 
 export type AppStatus =
@@ -70,6 +72,23 @@ interface AppState {
   addToHistory: (prompt: string, success: boolean) => void;
   removeFromHistory: (id: string) => void;
   clearHistory: () => void;
+
+  // Component Selection (for visual prop editor)
+  parsedComponents: ParsedComponent[];
+  setParsedComponents: (components: ParsedComponent[]) => void;
+
+  selectedComponentId: string | null;
+  setSelectedComponent: (id: string | null) => void;
+
+  hoveredComponentId: string | null;
+  setHoveredComponent: (id: string | null) => void;
+
+  // Theme System
+  themes: Theme[];
+  activeThemeId: string | null;
+  setThemes: (themes: Theme[]) => void;
+  setActiveTheme: (id: string) => void;
+  updateTheme: (id: string, updates: Partial<Theme>) => void;
 
   // Actions
   reset: () => void;
@@ -144,6 +163,28 @@ export const useAppStore = create<AppState>((set) => ({
     })),
   clearHistory: () => set({ promptHistory: [] }),
 
+  // Component Selection (for visual prop editor)
+  parsedComponents: [],
+  setParsedComponents: (components) => set({ parsedComponents: components }),
+
+  selectedComponentId: null,
+  setSelectedComponent: (id) => set({ selectedComponentId: id }),
+
+  hoveredComponentId: null,
+  setHoveredComponent: (id) => set({ hoveredComponentId: id }),
+
+  // Theme System
+  themes: [DEFAULT_THEME],
+  activeThemeId: 'default',
+  setThemes: (themes) => set({ themes }),
+  setActiveTheme: (id) => set({ activeThemeId: id }),
+  updateTheme: (id, updates) =>
+    set((state) => ({
+      themes: state.themes.map((theme) =>
+        theme.id === id ? { ...theme, ...updates } : theme
+      ),
+    })),
+
   // Actions
   reset: () => {
     // Clear permissions on reset
@@ -159,6 +200,13 @@ export const useAppStore = create<AppState>((set) => ({
       error: null,
       status: 'idle',
       viewMode: 'workspace',
+      // Clear selection state
+      parsedComponents: [],
+      selectedComponentId: null,
+      hoveredComponentId: null,
+      // Reset themes to default
+      themes: [DEFAULT_THEME],
+      activeThemeId: 'default',
     });
   },
 }));

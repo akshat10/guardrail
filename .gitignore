@@ -10,6 +10,11 @@ out/
 
 # Tauri
 src-tauri/target/
+**/src-tauri/target/
+**/src-tauri/gen/
+
+# Testing artifacts
+.playwright-mcp/
 
 # IDE
 .idea/

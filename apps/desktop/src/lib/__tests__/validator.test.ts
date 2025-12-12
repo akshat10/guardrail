@@ -434,4 +434,234 @@ describe('validate', () => {
       expect(result.errors.length).toBeGreaterThanOrEqual(5);
     });
   });
+
+  describe('prop value validation', () => {
+    it('rejects arbitrary padding value like "17px"', () => {
+      const code = `
+        import { Box } from '@guardrail/ui'
+
+        export default function App() {
+          return <Box padding="17px">Hello</Box>
+        }
+      `;
+      const result = validate(code);
+      expect(result.valid).toBe(false);
+      expect(result.errors).toHaveLength(1);
+      expect(result.errors[0].type).toBe('value');
+      expect(result.errors[0].message).toContain('17px');
+      expect(result.errors[0].message).toContain('Box.padding');
+    });
+
+    it('accepts valid token padding value "md"', () => {
+      const code = `
+        import { Box } from '@guardrail/ui'
+
+        export default function App() {
+          return <Box padding="md">Hello</Box>
+        }
+      `;
+      const result = validate(code);
+      expect(result.valid).toBe(true);
+      expect(result.errors).toHaveLength(0);
+    });
+
+    it('rejects invalid Button variant', () => {
+      const code = `
+        import { Button } from '@guardrail/ui'
+
+        export default function App() {
+          return <Button variant="custom">Click me</Button>
+        }
+      `;
+      const result = validate(code);
+      expect(result.valid).toBe(false);
+      expect(result.errors[0].type).toBe('value');
+      expect(result.errors[0].message).toContain('custom');
+      expect(result.errors[0].message).toContain('Button.variant');
+    });
+
+    it('accepts valid Button variants', () => {
+      const code = `
+        import { Button, Flex } from '@guardrail/ui'
+
+        export default function App() {
+          return (
+            <Flex gap="md">
+              <Button variant="primary">Primary</Button>
+              <Button variant="secondary">Secondary</Button>
+              <Button variant="ghost">Ghost</Button>
+              <Button variant="destructive">Delete</Button>
+            </Flex>
+          )
+        }
+      `;
+      const result = validate(code);
+      expect(result.valid).toBe(true);
+    });
+
+    it('rejects invalid Text size', () => {
+      const code = `
+        import { Text } from '@guardrail/ui'
+
+        export default function App() {
+          return <Text size="24px">Hello</Text>
+        }
+      `;
+      const result = validate(code);
+      expect(result.valid).toBe(false);
+      expect(result.errors[0].type).toBe('value');
+      expect(result.errors[0].message).toContain('24px');
+    });
+
+    it('accepts valid Text size tokens', () => {
+      const code = `
+        import { Text, Flex } from '@guardrail/ui'
+
+        export default function App() {
+          return (
+            <Flex direction="column">
+              <Text size="xs">Extra Small</Text>
+              <Text size="sm">Small</Text>
+              <Text size="md">Medium</Text>
+              <Text size="lg">Large</Text>
+              <Text size="xl">Extra Large</Text>
+            </Flex>
+          )
+        }
+      `;
+      const result = validate(code);
+      expect(result.valid).toBe(true);
+    });
+
+    it('allows dynamic values (variables)', () => {
+      const code = `
+        import { useState } from 'react'
+        import { Box, Button } from '@guardrail/ui'
+
+        export default function App() {
+          const [size, setSize] = useState('md')
+          const variant = 'primary'
+          return (
+            <Box padding={size}>
+              <Button variant={variant}>Click</Button>
+            </Box>
+          )
+        }
+      `;
+      const result = validate(code);
+      expect(result.valid).toBe(true);
+    });
+
+    it('allows free-form string props (label, placeholder)', () => {
+      const code = `
+        import { Input, Textarea } from '@guardrail/ui'
+
+        export default function App() {
+          return (
+            <>
+              <Input
+                label="Any label text here!"
+                placeholder="Enter whatever you want..."
+                error="This can be any error message"
+              />
+              <Textarea
+                label="Comments"
+                placeholder="Write your thoughts..."
+              />
+            </>
+          )
+        }
+      `;
+      const result = validate(code);
+      expect(result.valid).toBe(true);
+    });
+
+    it('allows function props (onClick, onChange)', () => {
+      const code = `
+        import { Button, Input } from '@guardrail/ui'
+
+        export default function App() {
+          return (
+            <>
+              <Button onClick={() => console.log('clicked')}>Click</Button>
+              <Input onChange={(e) => console.log(e.target.value)} />
+            </>
+          )
+        }
+      `;
+      const result = validate(code);
+      expect(result.valid).toBe(true);
+    });
+
+    it('rejects invalid Flex direction', () => {
+      const code = `
+        import { Flex } from '@guardrail/ui'
+
+        export default function App() {
+          return <Flex direction="horizontal">Items</Flex>
+        }
+      `;
+      const result = validate(code);
+      expect(result.valid).toBe(false);
+      expect(result.errors[0].type).toBe('value');
+      expect(result.errors[0].message).toContain('horizontal');
+      expect(result.errors[0].fix).toContain('row');
+    });
+
+    it('rejects invalid Badge variant', () => {
+      const code = `
+        import { Badge } from '@guardrail/ui'
+
+        export default function App() {
+          return <Badge variant="red">Error</Badge>
+        }
+      `;
+      const result = validate(code);
+      expect(result.valid).toBe(false);
+      expect(result.errors[0].type).toBe('value');
+      expect(result.errors[0].fix).toContain('error');
+    });
+
+    it('validates multiple props on same component', () => {
+      const code = `
+        import { Box } from '@guardrail/ui'
+
+        export default function App() {
+          return <Box padding="invalid" radius="invalid-radius">Hello</Box>
+        }
+      `;
+      const result = validate(code);
+      expect(result.valid).toBe(false);
+      expect(result.errors).toHaveLength(2);
+      expect(result.errors.every(e => e.type === 'value')).toBe(true);
+    });
+
+    it('validates JSX expression container with string literal', () => {
+      const code = `
+        import { Box } from '@guardrail/ui'
+
+        export default function App() {
+          return <Box padding={"invalid-value"}>Hello</Box>
+        }
+      `;
+      const result = validate(code);
+      expect(result.valid).toBe(false);
+      expect(result.errors[0].type).toBe('value');
+    });
+
+    it('provides helpful fix suggestions', () => {
+      const code = `
+        import { Button } from '@guardrail/ui'
+
+        export default function App() {
+          return <Button size="extra-large">Click</Button>
+        }
+      `;
+      const result = validate(code);
+      expect(result.valid).toBe(false);
+      expect(result.errors[0].fix).toContain('sm');
+      expect(result.errors[0].fix).toContain('md');
+      expect(result.errors[0].fix).toContain('lg');
+    });
+  });
 });

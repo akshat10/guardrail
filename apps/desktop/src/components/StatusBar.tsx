@@ -1,4 +1,3 @@
-import React from 'react';
 import { useAppStore } from '../stores/app-store';
 
 const statusMessages: Record<string, { text: string; color: string }> = {

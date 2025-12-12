@@ -29,6 +29,8 @@
     "zustand": "^4.4.0"
   },
   "devDependencies": {
+    "@babel/generator": "^7.28.5",
+    "@babel/types": "^7.28.5",
     "@tauri-apps/cli": "^2.0.0",
     "@testing-library/jest-dom": "^6.1.0",
     "@testing-library/react": "^14.1.0",

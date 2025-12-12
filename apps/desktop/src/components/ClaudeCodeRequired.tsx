@@ -1,5 +1,3 @@
-import React from 'react';
-
 export function ClaudeCodeRequired() {
   return (
     <div className="h-screen flex items-center justify-center p-8 bg-white dark:bg-neutral-950">

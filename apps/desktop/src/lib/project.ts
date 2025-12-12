@@ -3,8 +3,10 @@ import {
   mkdir,
   writeTextFile,
   readTextFile,
+  readDir,
+  remove,
 } from '@tauri-apps/plugin-fs';
-import { join, appDataDir } from '@tauri-apps/api/path';
+import { join, homeDir } from '@tauri-apps/api/path';
 
 export interface Project {
   name: string;
@@ -81,9 +83,10 @@ Always write the component to \`src/App.tsx\` with a default export.
     "preview": "vite preview"
   },
   "dependencies": {
-    "@guardrail/ui": "^0.1.0",
     "react": "^18.2.0",
-    "react-dom": "^18.2.0"
+    "react-dom": "^18.2.0",
+    "clsx": "^2.0.0",
+    "tailwind-merge": "^2.2.0"
   },
   "devDependencies": {
     "@types/react": "^18.2.0",
@@ -194,10 +197,82 @@ export default function App() {
 };
 
 /**
- * Create a new Guardrail project
+ * Get the root directory for all Guardrail projects
+ * ~/.guardrail/projects/
  */
-export async function createProject(name: string, basePath: string): Promise<Project> {
-  const projectPath = await join(basePath, name);
+export async function getProjectsRoot(): Promise<string> {
+  const home = await homeDir();
+  return join(home, '.guardrail', 'projects');
+}
+
+/**
+ * Ensure the projects root directory exists
+ */
+export async function ensureProjectsRoot(): Promise<string> {
+  const root = await getProjectsRoot();
+  if (!(await exists(root))) {
+    await mkdir(root, { recursive: true });
+  }
+  return root;
+}
+
+/**
+ * List all projects in the centralized location
+ */
+export async function listAllProjects(): Promise<Project[]> {
+  const root = await ensureProjectsRoot();
+
+  try {
+    const entries = await readDir(root);
+    const projects: Project[] = [];
+
+    for (const entry of entries) {
+      // Only process directories
+      if (entry.isDirectory && entry.name) {
+        const projectPath = await join(root, entry.name);
+        const claudeMdPath = await join(projectPath, 'CLAUDE.md');
+
+        // Verify it's a valid Guardrail project
+        if (await exists(claudeMdPath)) {
+          // Try to read metadata if available
+          let metadata: Partial<Project> = {};
+          try {
+            const metadataPath = await join(projectPath, '.guardrail-meta.json');
+            if (await exists(metadataPath)) {
+              const content = await readTextFile(metadataPath);
+              metadata = JSON.parse(content);
+            }
+          } catch {
+            // Ignore metadata errors
+          }
+
+          projects.push({
+            name: entry.name,
+            path: projectPath,
+            createdAt: metadata.createdAt || new Date().toISOString(),
+            lastOpened: metadata.lastOpened || new Date().toISOString(),
+          });
+        }
+      }
+    }
+
+    // Sort by lastOpened (most recent first)
+    projects.sort((a, b) =>
+      new Date(b.lastOpened).getTime() - new Date(a.lastOpened).getTime()
+    );
+
+    return projects;
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Create a new Guardrail project in the centralized location
+ */
+export async function createProject(name: string): Promise<Project> {
+  const root = await ensureProjectsRoot();
+  const projectPath = await join(root, name);
 
   // Check if directory exists
   if (await exists(projectPath)) {
@@ -222,66 +297,32 @@ export async function createProject(name: string, basePath: string): Promise<Pro
   }
 
   const now = new Date().toISOString();
-
-  return {
+  const project: Project = {
     name,
     path: projectPath,
     createdAt: now,
     lastOpened: now,
   };
+
+  // Save metadata
+  await saveProjectMetadata(project);
+
+  return project;
 }
 
 /**
- * Get list of recent projects from app data
+ * Save project metadata to .guardrail-meta.json
  */
-export async function getRecentProjects(): Promise<Project[]> {
-  const appData = await appDataDir();
-  const projectsFile = await join(appData, 'guardrail', 'projects.json');
-
-  try {
-    if (await exists(projectsFile)) {
-      const content = await readTextFile(projectsFile);
-      return JSON.parse(content);
-    }
-  } catch {
-    // Ignore errors, return empty array
-  }
-
-  return [];
+export async function saveProjectMetadata(project: Project): Promise<void> {
+  const metadataPath = await join(project.path, '.guardrail-meta.json');
+  await writeTextFile(metadataPath, JSON.stringify({
+    createdAt: project.createdAt,
+    lastOpened: project.lastOpened,
+  }, null, 2));
 }
 
 /**
- * Save project to recent projects list
- */
-export async function saveRecentProject(project: Project): Promise<void> {
-  const appData = await appDataDir();
-  const guardrailDir = await join(appData, 'guardrail');
-  const projectsFile = await join(guardrailDir, 'projects.json');
-
-  // Ensure directory exists
-  if (!(await exists(guardrailDir))) {
-    await mkdir(guardrailDir, { recursive: true });
-  }
-
-  // Get existing projects
-  const projects = await getRecentProjects();
-
-  // Update or add project
-  const existingIndex = projects.findIndex((p) => p.path === project.path);
-  if (existingIndex >= 0) {
-    projects[existingIndex] = { ...project, lastOpened: new Date().toISOString() };
-  } else {
-    projects.unshift(project);
-  }
-
-  // Keep only last 10 projects
-  const recentProjects = projects.slice(0, 10);
-
-  await writeTextFile(projectsFile, JSON.stringify(recentProjects, null, 2));
-}
-
-/**
- * Open an existing project
+ * Open an existing project and update last opened time
  */
 export async function openProject(projectPath: string): Promise<Project> {
   // Verify project exists
@@ -298,15 +339,68 @@ export async function openProject(projectPath: string): Promise<Project> {
   const name = projectPath.split('/').pop() || 'Unknown';
   const now = new Date().toISOString();
 
+  // Try to read existing metadata
+  let createdAt = now;
+  try {
+    const metadataPath = await join(projectPath, '.guardrail-meta.json');
+    if (await exists(metadataPath)) {
+      const content = await readTextFile(metadataPath);
+      const metadata = JSON.parse(content);
+      createdAt = metadata.createdAt || now;
+    }
+  } catch {
+    // Ignore metadata errors
+  }
+
   const project: Project = {
     name,
     path: projectPath,
-    createdAt: now, // We don't have the original creation date
+    createdAt,
     lastOpened: now,
   };
 
-  // Save to recent projects
-  await saveRecentProject(project);
+  // Update metadata with new lastOpened time
+  await saveProjectMetadata(project);
 
   return project;
+}
+
+/**
+ * Delete a project from the centralized location
+ */
+export async function deleteProject(projectPath: string): Promise<void> {
+  // Verify project exists
+  if (!(await exists(projectPath))) {
+    throw new Error(`Project not found at ${projectPath}`);
+  }
+
+  // Only allow deleting projects from the centralized location
+  const root = await getProjectsRoot();
+  if (!projectPath.startsWith(root)) {
+    throw new Error('Can only delete projects from the Guardrail projects folder');
+  }
+
+  // Remove the project directory
+  await remove(projectPath, { recursive: true });
+}
+
+/**
+ * Check if a project name is valid (no special characters, not too long)
+ */
+export function isValidProjectName(name: string): { valid: boolean; error?: string } {
+  if (!name || name.trim().length === 0) {
+    return { valid: false, error: 'Project name cannot be empty' };
+  }
+
+  if (name.length > 50) {
+    return { valid: false, error: 'Project name is too long (max 50 characters)' };
+  }
+
+  // Only allow alphanumeric, hyphens, and underscores
+  const validPattern = /^[a-zA-Z0-9_-]+$/;
+  if (!validPattern.test(name)) {
+    return { valid: false, error: 'Project name can only contain letters, numbers, hyphens, and underscores' };
+  }
+
+  return { valid: true };
 }

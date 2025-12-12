@@ -1,5 +1,10 @@
 import * as parser from '@babel/parser';
 import traverse from '@babel/traverse';
+import {
+  getAllowedValues,
+  FREE_FORM_PROPS,
+  FUNCTION_PROPS,
+} from './prop-constraints';
 
 const ALLOWED_IMPORTS = ['@guardrail/ui', 'react'];
 
@@ -82,7 +87,7 @@ const HTML_ELEMENTS = new Set([
 ]);
 
 export interface ValidationError {
-  type: 'import' | 'element' | 'prop' | 'syntax';
+  type: 'import' | 'element' | 'prop' | 'value' | 'syntax';
   message: string;
   line: number;
   column: number;
@@ -171,11 +176,18 @@ export function validate(code: string): ValidationResult {
         }
       }
 
-      // Check for forbidden props
+      // Get component name for prop validation
+      let componentName: string | null = null;
+      if (nameNode.type === 'JSXIdentifier') {
+        componentName = nameNode.name;
+      }
+
+      // Check for forbidden props and validate prop values
       for (const attr of path.node.attributes) {
         if (attr.type === 'JSXAttribute' && attr.name.type === 'JSXIdentifier') {
           const propName = attr.name.name;
 
+          // Check forbidden props (className, style)
           if (FORBIDDEN_PROPS.has(propName)) {
             errors.push({
               type: 'prop',
@@ -184,6 +196,46 @@ export function validate(code: string): ValidationResult {
               column: attr.loc?.start.column || 0,
               fix: `Remove ${propName}. Use component props instead (e.g., padding="md", variant="primary")`,
             });
+            continue;
+          }
+
+          // Skip validation for free-form and function props
+          if (FREE_FORM_PROPS.has(propName) || FUNCTION_PROPS.has(propName)) {
+            continue;
+          }
+
+          // Validate prop values for known components
+          if (componentName && ALLOWED_COMPONENTS.has(componentName)) {
+            const allowedValues = getAllowedValues(componentName, propName);
+
+            // Only validate if we have constraints for this prop
+            if (allowedValues) {
+              let propValue: string | null = null;
+
+              // Handle string literal values: prop="value"
+              if (attr.value?.type === 'StringLiteral') {
+                propValue = attr.value.value;
+              }
+              // Handle JSX expression container with string: prop={"value"}
+              else if (
+                attr.value?.type === 'JSXExpressionContainer' &&
+                attr.value.expression.type === 'StringLiteral'
+              ) {
+                propValue = attr.value.expression.value;
+              }
+              // Skip dynamic expressions like prop={variable} or prop={condition ? a : b}
+              // These can't be statically validated
+
+              if (propValue !== null && !allowedValues.includes(propValue)) {
+                errors.push({
+                  type: 'value',
+                  message: `Invalid value "${propValue}" for ${componentName}.${propName}`,
+                  line: attr.loc?.start.line || 0,
+                  column: attr.loc?.start.column || 0,
+                  fix: `Use one of: ${allowedValues.join(', ')}`,
+                });
+              }
+            }
           }
         }
       }

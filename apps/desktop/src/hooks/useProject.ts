@@ -1,6 +1,6 @@
 import { useCallback } from 'react';
 import { useAppStore } from '../stores/app-store';
-import { createProject, openProject, saveRecentProject } from '../lib/project';
+import { createProject, openProject } from '../lib/project';
 
 export function useProject() {
   const setProject = useAppStore((state) => state.setProject);
@@ -9,10 +9,9 @@ export function useProject() {
   const reset = useAppStore((state) => state.reset);
 
   const create = useCallback(
-    async (name: string, basePath: string) => {
+    async (name: string) => {
       try {
-        const project = await createProject(name, basePath);
-        await saveRecentProject(project);
+        const project = await createProject(name);
         setProject(project);
         reset();
         setStatus('idle');
