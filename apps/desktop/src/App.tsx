@@ -15,6 +15,12 @@ function App() {
   useEffect(() => {
     // Check for Claude Code on startup
     async function checkClaudeCode() {
+      // In browser mode (non-Tauri), skip Claude Code check for testing
+      const isBrowser = !window.__TAURI_INTERNALS__;
+      if (isBrowser) {
+        setStatus('no-project');
+        return;
+      }
       const hasClaudeCode = await detectClaudeCode();
       if (hasClaudeCode) {
         setStatus('no-project');

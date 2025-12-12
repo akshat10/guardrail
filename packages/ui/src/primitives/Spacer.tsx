@@ -1,4 +1,3 @@
-import React from 'react';
 import type { SpacingToken } from '../tokens';
 
 export interface SpacerProps {

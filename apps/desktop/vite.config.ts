@@ -5,6 +5,10 @@ import path from 'path';
 // https://vitejs.dev/config/
 export default defineConfig({
   plugins: [react()],
+  define: {
+    // Polyfill process.env for @babel/traverse which uses it
+    'process.env': {},
+  },
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),

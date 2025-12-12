@@ -1,6 +1,43 @@
 import { Command } from '@tauri-apps/plugin-shell';
 import { readTextFile } from '@tauri-apps/plugin-fs';
 
+// Scope names defined in capabilities/default.json for claude CLI
+// These correspond to different installation paths
+const CLAUDE_SCOPE_NAMES = [
+  'claude-local',    // ~/.local/bin/claude
+  'claude-npm',      // ~/.npm-global/bin/claude
+  'claude-homebrew', // /opt/homebrew/bin/claude
+  'claude-usr-local', // /usr/local/bin/claude
+  'claude',          // Default PATH lookup (fallback)
+];
+
+// Cache the working scope name
+let cachedClaudeScope: string | null = null;
+
+/**
+ * Find a working claude scope by trying each one
+ */
+async function findClaudeScope(): Promise<string | null> {
+  // Return cached scope if already found
+  if (cachedClaudeScope) return cachedClaudeScope;
+
+  for (const scopeName of CLAUDE_SCOPE_NAMES) {
+    try {
+      const command = Command.create(scopeName, ['--version']);
+      const result = await command.execute();
+      if (result.code === 0) {
+        cachedClaudeScope = scopeName;
+        return scopeName;
+      }
+    } catch {
+      // This scope didn't work, try the next one
+      continue;
+    }
+  }
+
+  return null;
+}
+
 export interface GenerateOptions {
   prompt: string;
   projectPath: string;
@@ -18,9 +55,8 @@ export interface GenerateResult {
  */
 export async function detectClaudeCode(): Promise<boolean> {
   try {
-    const command = Command.create('claude', ['--version']);
-    const result = await command.execute();
-    return result.code === 0;
+    const claudeScope = await findClaudeScope();
+    return claudeScope !== null;
   } catch {
     return false;
   }
@@ -49,7 +85,16 @@ Generate the component now.
 `.trim();
 
   try {
-    const command = Command.create('claude', [
+    const claudeScope = await findClaudeScope();
+    if (!claudeScope) {
+      return {
+        success: false,
+        code: '',
+        error: 'Claude Code CLI not found. Please install it first.',
+      };
+    }
+
+    const command = Command.create(claudeScope, [
       '--print',
       '--dangerously-skip-permissions',
       fullPrompt,
