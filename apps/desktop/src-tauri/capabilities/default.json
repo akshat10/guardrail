@@ -5,6 +5,7 @@
   "windows": ["main"],
   "permissions": [
     "core:default",
+    "core:path:default",
     "shell:allow-open",
     {
       "identifier": "shell:allow-execute",
@@ -36,6 +37,36 @@
         {
           "name": "claude-usr-local",
           "cmd": "/usr/local/bin/claude",
+          "args": true,
+          "sidecar": false
+        },
+        {
+          "name": "npm",
+          "cmd": "npm",
+          "args": true,
+          "sidecar": false
+        },
+        {
+          "name": "npm-nvm",
+          "cmd": "$HOME/.nvm/versions/node/v22.16.0/bin/npm",
+          "args": true,
+          "sidecar": false
+        },
+        {
+          "name": "pnpm",
+          "cmd": "pnpm",
+          "args": true,
+          "sidecar": false
+        },
+        {
+          "name": "bash",
+          "cmd": "/bin/bash",
+          "args": true,
+          "sidecar": false
+        },
+        {
+          "name": "zsh",
+          "cmd": "/bin/zsh",
           "args": true,
           "sidecar": false
         }
@@ -73,17 +104,52 @@
           "cmd": "/usr/local/bin/claude",
           "args": true,
           "sidecar": false
+        },
+        {
+          "name": "npm",
+          "cmd": "npm",
+          "args": true,
+          "sidecar": false
+        },
+        {
+          "name": "npm-nvm",
+          "cmd": "$HOME/.nvm/versions/node/v22.16.0/bin/npm",
+          "args": true,
+          "sidecar": false
+        },
+        {
+          "name": "pnpm",
+          "cmd": "pnpm",
+          "args": true,
+          "sidecar": false
+        },
+        {
+          "name": "bash",
+          "cmd": "/bin/bash",
+          "args": true,
+          "sidecar": false
+        },
+        {
+          "name": "zsh",
+          "cmd": "/bin/zsh",
+          "args": true,
+          "sidecar": false
         }
       ]
     },
-    "fs:allow-read",
-    "fs:allow-write",
+    "shell:allow-kill",
+    "pty:default",
     "fs:allow-exists",
     "fs:allow-mkdir",
-    "fs:allow-remove",
-    "fs:allow-copy-file",
+    "fs:allow-read",
     "fs:allow-read-dir",
     "fs:allow-read-text-file",
-    "fs:allow-write-text-file"
+    "fs:allow-remove",
+    "fs:allow-write",
+    "fs:allow-write-text-file",
+    "fs:allow-copy-file",
+    "fs:scope-home-recursive",
+    "fs:scope-appdata-recursive",
+    "fs:scope-temp-recursive"
   ]
 }
