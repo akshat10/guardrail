@@ -94,8 +94,17 @@ export function Terminal({ projectPath, onReady }: TerminalProps) {
           pty?.resize(cols, rows);
         });
 
-        // Start claude after shell is ready
+        // Show welcome banner and start claude
         setTimeout(() => {
+          // Write welcome banner
+          term!.write('\x1b[36m╭───────────────────────────────────────────────────────────╮\x1b[0m\r\n');
+          term!.write('\x1b[36m│\x1b[0m  \x1b[1m\x1b[35mGuardrail Design System\x1b[0m                                 \x1b[36m│\x1b[0m\r\n');
+          term!.write('\x1b[36m│\x1b[0m                                                           \x1b[36m│\x1b[0m\r\n');
+          term!.write('\x1b[36m│\x1b[0m  \x1b[33mTip:\x1b[0m Use \x1b[32m/component\x1b[0m to generate with the design system  \x1b[36m│\x1b[0m\r\n');
+          term!.write('\x1b[36m│\x1b[0m  \x1b[90mExample: /component a settings page with dark mode toggle\x1b[0m \x1b[36m│\x1b[0m\r\n');
+          term!.write('\x1b[36m╰───────────────────────────────────────────────────────────╯\x1b[0m\r\n\r\n');
+
+          // Launch claude
           pty?.write('claude\n');
         }, 500);
 
