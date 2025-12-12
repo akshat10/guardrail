@@ -1,30 +1,57 @@
-import React from 'react';
+import { useState, useCallback, useRef, useEffect, type FormEvent, type KeyboardEvent } from 'react';
 import { useAppStore } from '../stores/app-store';
 import { useClaudeCode } from '../hooks/useClaudeCode';
+import { ConsentDialog } from './PermissionDialog';
+import { PromptHistory } from './PromptHistory';
 
 export function PromptPanel() {
   const prompt = useAppStore((state) => state.prompt);
   const setPrompt = useAppStore((state) => state.setPrompt);
   const status = useAppStore((state) => state.status);
   const streamingOutput = useAppStore((state) => state.streamingOutput);
-  const { generateCode } = useClaudeCode();
+  const isStreamStarted = useAppStore((state) => state.isStreamStarted);
+  const { generateCode, cancel } = useClaudeCode();
+
+  const [showConsent, setShowConsent] = useState(false);
+  const outputRef = useRef<HTMLDivElement>(null);
 
   const isGenerating = status === 'generating' || status === 'validating' || status === 'fixing';
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  // Auto-scroll to bottom when streaming output changes
+  useEffect(() => {
+    if (outputRef.current && streamingOutput) {
+      outputRef.current.scrollTop = outputRef.current.scrollHeight;
+    }
+  }, [streamingOutput]);
+
+  const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     if (!prompt.trim() || isGenerating) return;
-    await generateCode(prompt);
+    // Show consent dialog before generating
+    setShowConsent(true);
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
+  const handleApproveGeneration = useCallback(async () => {
+    setShowConsent(false);
+    await generateCode(prompt);
+  }, [generateCode, prompt]);
+
+  const handleCancelGeneration = useCallback(() => {
+    setShowConsent(false);
+  }, []);
+
+  const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
       e.preventDefault();
       if (prompt.trim() && !isGenerating) {
-        generateCode(prompt);
+        setShowConsent(true);
       }
     }
   };
+
+  const handleSelectHistoryPrompt = useCallback((selectedPrompt: string) => {
+    setPrompt(selectedPrompt);
+  }, [setPrompt]);
 
   return (
     <div className="h-full flex flex-col">
@@ -66,17 +93,57 @@ export function PromptPanel() {
         </div>
       </form>
 
-      {/* Streaming Output */}
-      {streamingOutput && (
-        <div className="flex-1 overflow-auto p-4 bg-neutral-50 dark:bg-neutral-900">
-          <h3 className="text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider mb-2">
-            Claude Output
-          </h3>
-          <pre className="text-sm text-neutral-700 dark:text-neutral-300 whitespace-pre-wrap font-mono">
-            {streamingOutput}
-          </pre>
+      {/* Streaming Output / Loading / History */}
+      {isGenerating || streamingOutput ? (
+        <div ref={outputRef} className="flex-1 overflow-auto p-4 bg-neutral-50 dark:bg-neutral-900">
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">
+              Claude Output
+            </h3>
+            {isGenerating && (
+              <button
+                onClick={cancel}
+                className="px-2 py-1 text-xs font-medium text-red-600 hover:text-red-700
+                           dark:text-red-400 dark:hover:text-red-300 transition-colors
+                           hover:bg-red-50 dark:hover:bg-red-950 rounded"
+              >
+                Cancel
+              </button>
+            )}
+          </div>
+
+          {/* Loading state before first token */}
+          {isGenerating && !isStreamStarted && (
+            <div className="flex items-center gap-3 text-neutral-500 dark:text-neutral-400 py-4">
+              <div className="animate-spin rounded-full h-5 w-5 border-2 border-primary-600 border-t-transparent" />
+              <span className="text-sm">Waiting for Claude...</span>
+            </div>
+          )}
+
+          {/* Streaming text with cursor */}
+          {streamingOutput && (
+            <pre className="text-sm text-neutral-700 dark:text-neutral-300 whitespace-pre-wrap font-mono leading-relaxed">
+              {streamingOutput}
+              {isGenerating && (
+                <span className="inline-block w-2 h-4 ml-0.5 bg-primary-500 animate-pulse" />
+              )}
+            </pre>
+          )}
+        </div>
+      ) : (
+        /* Prompt History - show when not generating */
+        <div className="flex-1 overflow-auto">
+          <PromptHistory onSelectPrompt={handleSelectHistoryPrompt} />
         </div>
       )}
+
+      {/* Consent Dialog */}
+      <ConsentDialog
+        isOpen={showConsent}
+        prompt={prompt}
+        onApprove={handleApproveGeneration}
+        onCancel={handleCancelGeneration}
+      />
     </div>
   );
 }

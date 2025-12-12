@@ -1,6 +1,8 @@
 import { create } from 'zustand';
+import { persist } from 'zustand/middleware';
 import type { ValidationError } from '../lib/validator';
 import type { Project } from '../lib/project';
+import { usePermissionStore } from './permission-store';
 
 export type AppStatus =
   | 'initializing' // Checking for Claude Code
@@ -13,10 +15,23 @@ export type AppStatus =
   | 'ready' // Valid output ready
   | 'error'; // Something went wrong
 
+export type ViewMode = 'workspace' | 'gallery';
+
+export interface PromptHistoryItem {
+  id: string;
+  prompt: string;
+  timestamp: string;
+  success: boolean;
+}
+
 interface AppState {
   // Status
   status: AppStatus;
   setStatus: (status: AppStatus) => void;
+
+  // View Mode
+  viewMode: ViewMode;
+  setViewMode: (mode: ViewMode) => void;
 
   // Project
   project: Project | null;
@@ -34,6 +49,10 @@ interface AppState {
   appendStreamingOutput: (chunk: string) => void;
   clearStreamingOutput: () => void;
 
+  // Streaming progress
+  isStreamStarted: boolean;
+  setStreamStarted: (started: boolean) => void;
+
   // Validation
   validationErrors: ValidationError[];
   setValidationErrors: (errors: ValidationError[]) => void;
@@ -46,6 +65,12 @@ interface AppState {
   error: string | null;
   setError: (error: string | null) => void;
 
+  // Prompt History
+  promptHistory: PromptHistoryItem[];
+  addToHistory: (prompt: string, success: boolean) => void;
+  removeFromHistory: (id: string) => void;
+  clearHistory: () => void;
+
   // Actions
   reset: () => void;
 }
@@ -55,9 +80,17 @@ export const useAppStore = create<AppState>((set) => ({
   status: 'initializing',
   setStatus: (status) => set({ status }),
 
+  // View Mode
+  viewMode: 'workspace',
+  setViewMode: (mode) => set({ viewMode: mode }),
+
   // Project
   project: null,
-  setProject: (project) => set({ project }),
+  setProject: (project) => {
+    // Clear session permissions when project changes
+    usePermissionStore.getState().clearSessionPermissions();
+    set({ project });
+  },
 
   // Generation
   prompt: '',
@@ -74,6 +107,10 @@ export const useAppStore = create<AppState>((set) => ({
     })),
   clearStreamingOutput: () => set({ streamingOutput: '' }),
 
+  // Streaming progress
+  isStreamStarted: false,
+  setStreamStarted: (started) => set({ isStreamStarted: started }),
+
   // Validation
   validationErrors: [],
   setValidationErrors: (errors) => set({ validationErrors: errors }),
@@ -87,15 +124,41 @@ export const useAppStore = create<AppState>((set) => ({
   error: null,
   setError: (error) => set({ error }),
 
+  // Prompt History
+  promptHistory: [],
+  addToHistory: (prompt, success) =>
+    set((state) => ({
+      promptHistory: [
+        {
+          id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+          prompt,
+          timestamp: new Date().toISOString(),
+          success,
+        },
+        ...state.promptHistory,
+      ].slice(0, 50), // Keep last 50 prompts
+    })),
+  removeFromHistory: (id) =>
+    set((state) => ({
+      promptHistory: state.promptHistory.filter((item) => item.id !== id),
+    })),
+  clearHistory: () => set({ promptHistory: [] }),
+
   // Actions
-  reset: () =>
+  reset: () => {
+    // Clear permissions on reset
+    usePermissionStore.getState().clearSessionPermissions();
+    usePermissionStore.getState().clearPendingRequests();
     set({
       prompt: '',
       generatedCode: '',
       streamingOutput: '',
+      isStreamStarted: false,
       validationErrors: [],
       fixAttempts: 0,
       error: null,
       status: 'idle',
-    }),
+      viewMode: 'workspace',
+    });
+  },
 }));
